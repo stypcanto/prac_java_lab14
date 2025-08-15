@@ -1,4 +1,4 @@
-package styp.com.lab13implementacionweb;
+package styp.com.lab13implementacionweb.controller;
 
 import java.io.*;
 
