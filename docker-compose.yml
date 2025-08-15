@@ -1,0 +1,34 @@
+version: "3.8"
+
+services:
+  mysql-db:
+    image: mysql:8.0
+    container_name: mysql_web
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: web
+      MYSQL_USER: usuario
+      MYSQL_PASSWORD: root
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data_lab:/var/lib/mysql
+    networks:
+      - red_lab
+
+  tomcat:
+    build: .
+    container_name: lab14
+    ports:
+      - "8080:8080"
+    depends_on:
+      - mysql-db
+    networks:
+      - red_lab  # <--- Misma red que MySQL
+
+volumes:
+  mysql_data_lab:
+
+networks:
+  red_lab:
+    driver: bridge
