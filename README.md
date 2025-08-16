@@ -1,8 +1,8 @@
-# Lab14 - Implementación Web con Servlets y JSP
+# Lab 14 - Implementación Web con Servlets, JSP y Reportes PDF
 
-Este proyecto es una aplicación web en **Java** que implementa un CRUD básico de usuarios utilizando **Servlets, JSP, JDBC y MySQL**.
+Este proyecto es una aplicación web en Java que implementa un CRUD básico de usuarios utilizando Servlets, JSP, JDBC y MySQL, y ahora incluye generación de reportes PDF con JasperReports.
 
-La aplicación permite registrar, listar y gestionar usuarios en una base de datos.
+La aplicación permite registrar, listar y gestionar usuarios en una base de datos, así como generar un reporte PDF profesional de todos los usuarios.
 
 ---
 
@@ -15,6 +15,7 @@ La aplicación permite registrar, listar y gestionar usuarios en una base de dat
 - **MySQL 8**
 - **Maven**
 - **HTML5, CSS3**
+- **JasperReports 6.x**
 
 ---
 
@@ -22,31 +23,35 @@ La aplicación permite registrar, listar y gestionar usuarios en una base de dat
 
 ```src
 ├── main
-│ ├── java
-│ │ └── styp
-│ │ └── com
-│ │ └── lab13implementacionweb
-│ │ ├── controller
-│ │ │ └── UsuarioServlet.java # Controlador principal
-│ │ ├── dao
-│ │ │ ├── ConnectionDB.java # Conexión a la BD
-│ │ │ ├── IUsuarioDAO.java # Interfaz DAO
-│ │ │ └── UsuarioDAOImpl.java # Implementación DAO
-│ │ └── dto
-│ │ └── UsuarioDTO.java # Objeto de transferencia
-│ ├── resources
-│ │ └── script.sql # Script de creación de BD y tabla usuario
-│ └── webapp
-│ ├── WEB-INF
-│ │ └── web.xml # Configuración del proyecto
-│ ├── css
-│ │ ├── reset.css
-│ │ └── structure.css
-│ ├── index.jsp # Página de inicio
-│ └── mensaje.jsp # Vista de mensajes
+│   ├── java
+│   │   └── styp
+│   │       └── com
+│   │           └── lab13implementacionweb
+│   │               ├── controller
+│   │               │   ├── UsuarioServlet.java       # Controlador principal
+│   │               │   └── ReporteUsuariosServlet.java # Genera el PDF con JasperReports
+│   │               ├── dao
+│   │               │   ├── ConnectionDB.java        # Conexión a la BD
+│   │               │   ├── IUsuarioDAO.java         # Interfaz DAO
+│   │               │   └── UsuarioDAOImpl.java     # Implementación DAO
+│   │               └── dto
+│   │                   └── UsuarioDTO.java         # Objeto de transferencia
+│   ├── resources
+│   │   ├── script.sql                              # Script de creación de BD y tabla usuario
+│   │   └── reportes
+│   │       └── usuarios.jrxml                       # Diseño del reporte JasperReport
+│   └── webapp
+│       ├── WEB-INF
+│       │   └── web.xml                             # Configuración del proyecto
+│       ├── css
+│       │   ├── reset.css
+│       │   └── structure.css
+│       ├── index.jsp                                # Página de inicio
+│       └── mensaje.jsp                              # Vista de mensajes
 └── test
-├── java
-└── resources
+    ├── java
+    └── resources
+
 
 ```
 
@@ -105,7 +110,90 @@ Vista cuando un usuario intenta acceder a una página restringida sin haberse au
 
 ---
 
+### 📊 Flujo de JasperReports (de JRXML a PDF)
+El reporte de usuarios se genera siguiendo estos pasos:
 
+```sql
++-----------------+      compile       +----------------+
+|                 | ----------------> |                |
+|  usuarios.jrxml |                   |  usuarios.jasper|
+|  (diseño XML)   |                   | (compilado)    |
++-----------------+                   +----------------+
+         |                                     |
+         | fillReport                           |
+         v                                     v
++-----------------+      export PDF     +----------------+
+|                 | ----------------> |                |
+|  Datos BD/MySQL |                   |  usuarios.pdf  |
+|  (id, usuario,  |                   |  (reporte final|
+|   clave)        |                   |   en PDF)      |
++-----------------+                   +----------------+
+
+```
+### 🔹 Explicación paso a paso
+
+**1️⃣ Diseño JRXML**
+- Archivo XML que define el reporte: campos, título, encabezados, colores y fuentes.
+- **Ubicación:** `src/main/resources/reportes/usuarios.jrxml`.
+
+**2️⃣ Compilación (`JasperCompileManager.compileReport`)**
+- Convierte el JRXML en un archivo `.jasper` que JasperReports puede usar internamente.
+- Es como traducir tu diseño en instrucciones que Java entiende.
+
+**3️⃣ Rellenar datos (`JasperFillManager.fillReport`)**
+- Se conecta a la base de datos (MySQL).
+- Llena el reporte con los registros de la tabla `usuario`.
+
+**4️⃣ Exportar a PDF (`JRPdfExporter`)**
+- Toma el reporte rellenado y lo convierte en un archivo PDF.
+- Se puede mostrar en el navegador o descargar directamente.
+
+###  🔹 Ejemplo de código del Servlet
+
+```java
+@WebServlet(name = "ReporteUsuariosServlet", value = "/reporte-usuarios")
+public class ReporteUsuariosServlet extends HttpServlet {
+
+    @Override
+    protected void doGet(HttpServletRequest request, HttpServletResponse response)
+            throws ServletException, IOException {
+        // Ruta del JRXML
+        String jrxml = getServletContext().getRealPath("/WEB-INF/reportes/usuarios.jrxml");
+
+        try (Connection conn = ConnectionDB.getConnection()) {
+            // Compilar
+            JasperReport report = JasperCompileManager.compileReport(jrxml);
+
+            // Rellenar datos desde la BD
+            JasperPrint print = JasperFillManager.fillReport(report, null, conn);
+
+            // Configurar PDF en respuesta HTTP
+            response.setContentType("application/pdf");
+            response.setHeader("Content-Disposition", "inline; filename=usuarios.pdf");
+
+            // Exportar PDF
+            JRPdfExporter exporter = new JRPdfExporter();
+            exporter.setExporterInput(new SimpleExporterInput(print));
+            exporter.setExporterOutput(new SimpleOutputStreamExporterOutput(response.getOutputStream()));
+            exporter.exportReport();
+
+        } catch (JRException | SQLException e) {
+            e.printStackTrace();
+            response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, e.getMessage());
+        }
+    }
+}
+
+```
+### 💡 Tip:
+
+El flujo JRXML → .jasper → PDF es estándar en JasperReports y te permite cambiar el diseño del PDF sin tocar el código Java.
+
+
+### 🔹 Vista de documento PDF creado por jasper
+
+
+![Página sin Login](Documents/4.png)
 
 ---
 ## Cómo ejecutarlo
