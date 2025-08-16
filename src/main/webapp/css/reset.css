@@ -13,3 +13,9 @@ html, body {
 button, input, select, textarea {
     font: inherit;
 }
+
+fieldset {
+    border: none;   /* Quita el borde */
+    margin: 0;      /* Elimina márgenes */
+    padding: 0;     /* Elimina padding extra */
+}
